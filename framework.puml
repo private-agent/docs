@@ -1,0 +1,72 @@
+@startuml framework
+
+skinparam componentStyle uml2
+skinparam linetype ortho
+
+' 布局控制
+skinparam nodesep 100
+skinparam ranksep 80
+
+' 组件布局
+together {
+  rectangle "用户微信" as wx
+  [wx-backend] <<入口>> #lightgreen
+}
+
+[workflow-manager] <<管理中枢>> #lightblue
+[agent-session-manager] <<会话管理>> #lightblue
+[agent-mission-publisher] <<任务分派>> #lightblue
+[agent-session-checker] <<会话优化>> #ff9999
+
+node "ai-request-service" as AIS <<AI服务>> #violet
+
+database "会话存储" as session_db #lightgray
+
+wx -down-> [wx-backend]
+
+[wx-backend] -right-> [workflow-manager] : "1. 转发用户消息"
+
+[workflow-manager] -down-> [agent-session-manager] : "2. 获取会话上下文"
+
+[agent-session-manager] -down-> session_db : "读写会话数据"
+
+[workflow-manager] -right-> [agent-mission-publisher] : "3. 分派处理任务\n(根据存活智能体描述)"
+
+component "功能智能体集群" as agents {
+    [agent-warehouse-manager] <<仓储管理>> #ffcc99
+    [agent-meal-planner] <<食谱规划>> #ffcc99
+    [agent-...] <<其他功能>> #ffcc99
+}
+
+[agent-mission-publisher] -right-> agents : "4. 任务路由"
+
+agents -left-> [workflow-manager] : "5. 返回处理结果"
+
+[workflow-manager] -up-> [agent-session-checker] : "6. 请求会话优化"
+
+[agent-session-checker] -down-> [workflow-manager] : "7. 返回精简结果"
+
+[workflow-manager] -left-> [wx-backend] : "8. 发送最终回复"
+
+[wx-backend] -up-> wx : "9. 客服消息响应"
+
+[workflow-manager] -down-> [agent-session-manager] : "10a. 更新成功会话"
+[workflow-manager] .down.> [agent-session-manager] : "10b. 失败处理(待实现)"
+
+[agent-session-manager] -down-> AIS : "上下文分析"
+[agent-mission-publisher] -down-> AIS : "任务决策"
+[agent-session-checker] -down-> AIS : "总结优化"
+agents -down-> AIS : "功能处理"
+
+note right of agents
+    新智能体上线时向workflow-manager
+    注册功能描述和存活状态
+end note
+
+note bottom of AIS
+统一AI服务网关
+管理多平台API调用
+提供负载均衡和降级保护
+end note
+
+@enduml

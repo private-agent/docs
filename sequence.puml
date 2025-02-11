@@ -1,0 +1,114 @@
+@startuml sequence
+
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+skinparam MaxMessageSize 250
+
+' 定义参与者
+actor "用户" as user
+participant "wx-backend" as wx #lightgreen
+participant "workflow-manager" as wf #lightblue
+participant "agent-session-manager" as sm #lightblue
+participant "agent-mission-publisher" as mp #lightblue
+participant "agent-session-checker" as sc #pink
+database "会话存储" as db
+participant "功能智能体集群" as agents #orange
+participant "ai-request-service" as ai #violet
+
+note over agents
+  新智能体上线时向workflow-manager
+  注册功能描述和存活状态
+end note
+agents -> wf: 注册功能描述
+activate wf
+wf -> agents: 注册成功
+deactivate wf
+
+note over ai
+  统一AI服务网关
+  管理多平台API调用
+  提供负载均衡和降级保护
+end note
+
+====
+
+' 开始交互流程
+user -> wx: 发送微信消息
+activate wx
+
+wx -> wf: 1. 转发用户消息
+activate wf
+
+wf -> sm: 2. 获取会话上下文
+activate sm
+sm -> db: 读取会话摘要
+activate db
+db --> sm: 返回摘要
+sm -> ai: 判断消息所属会话
+activate ai
+ai --> sm: 返回判断结果
+deactivate ai
+sm -> db: 读取会话详情
+db --> sm: 返回详情
+deactivate db
+sm --> wf: 返回会话上下文
+deactivate sm
+
+wf -> agents: 3. 轮询智能体状态
+activate agents
+agents -> wf: 返回智能体状态
+deactivate agents
+
+wf -> mp: 4. 分派处理任务
+activate mp
+mp -> ai: 任务决策
+activate ai
+ai --> mp: 返回决策结果
+deactivate ai
+mp -> wf: 任务指派清单
+deactivate mp
+
+wf -> agents: 5. 任务路由
+activate agents
+agents -> ai: 功能处理
+activate ai
+ai --> agents: AI响应
+deactivate ai
+agents --> wf: 根据清单依次路由
+wf --> agents: 依次等待结果
+agents --> wf: 6. 返回全部处理结果
+deactivate agents
+
+wf -> sc: 7. 请求会话优化
+activate sc
+sc -> ai: 总结优化
+activate ai
+ai --> sc: 返回精简结果
+deactivate ai
+sc --> wf: 8. 返回精简结果
+deactivate sc
+
+wf -> wx: 9. 发送最终回复
+
+wx -> user: 10. 发送客服消息
+wx --> wf: 反馈发送状态
+deactivate wx
+
+alt 发送成功
+    wf -> sm: 11a. 更新会话上下文
+    activate sm
+    sm -> db: 保存会话数据
+    sm -> ai: 更新会话摘要
+    activate ai
+    ai --> sm: 返回处理结果
+    deactivate ai
+    sm -> db: 保存会话摘要
+    sm --> wf: 返回处理结果
+    deactivate sm
+else 发送失败
+    wf --> sm: 11b. 失败处理(待实现)
+end
+deactivate wf
+
+
+@enduml
